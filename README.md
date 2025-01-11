@@ -162,21 +162,7 @@ Add this configuration to your app's server settings:
 }
 ```
 
-Replace `path/to/gdrive-mcp-server` with the actual path to your installation directory. For example:
-```json
-{
-  "mcpServers": {
-    "gdrive": {
-      "command": "node",
-      "args": ["D:/AI-DEV/gdrive-mcp-server/dist/index.js"],
-      "env": {
-        "GOOGLE_APPLICATION_CREDENTIALS": "D:/AI-DEV/gdrive-mcp-server/credentials/gcp-oauth.keys.json",
-        "MCP_GDRIVE_CREDENTIALS": "D:/AI-DEV/gdrive-mcp-server/credentials/.gdrive-server-credentials.json"
-      }
-    }
-  }
-}
-```
+Replace `path/to/gdrive-mcp-server` with the actual path to your installation directory.
 
 ### Example Usage
 
