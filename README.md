@@ -107,11 +107,15 @@ The server intelligently handles different Google Workspace file types:
 ### Installation
 
 ```bash
-# Install globally
-npm install -g @modelcontextprotocol/server-gdrive
+# Clone the repository
+git clone https://github.com/felores/gdrive-mcp-server.git
+cd gdrive-mcp-server
 
-# Or install locally in your project
-npm install @modelcontextprotocol/server-gdrive
+# Install dependencies
+npm install
+
+# Build the project
+npm run build
 ```
 
 ### Authentication
@@ -119,16 +123,12 @@ npm install @modelcontextprotocol/server-gdrive
 1. Create a credentials directory and place your OAuth keys:
    ```bash
    mkdir credentials
-   # Move your gcp-oauth.keys.json to the credentials directory
+   # Move your downloaded OAuth JSON file to the credentials directory as gcp-oauth.keys.json
    ```
 
 2. Run the authentication command:
    ```bash
-   # If installed globally
-   mcp-server-gdrive auth
-
-   # If installed locally
-   npx @modelcontextprotocol/server-gdrive auth
+   node dist/index.js auth
    ```
 
 3. Complete the OAuth flow in your browser
@@ -139,11 +139,8 @@ npm install @modelcontextprotocol/server-gdrive
 ### As a Command Line Tool
 
 ```bash
-# If installed globally
-mcp-server-gdrive
-
-# If installed locally
-npx @modelcontextprotocol/server-gdrive
+# Start the server
+node dist/index.js
 ```
 
 ### Integration with Desktop App
