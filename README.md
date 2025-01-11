@@ -1,53 +1,154 @@
-# Google Drive server
+# Google Drive MCP Server
 
-This MCP server integrates with Google Drive to allow listing, reading, and searching over files.
+A powerful Model Context Protocol (MCP) server that provides seamless integration with Google Drive, allowing AI models to search, list, and read files from Google Drive.
 
-## Components
+## 🚀 Features
 
 ### Tools
 
-- **gdrive_search**
-  - Search for files in Google Drive
-  - Input: `query` (string): Search query
-  - Returns file names and MIME types of matching files
+#### 1. `gdrive_search`
+Search for files in your Google Drive with powerful full-text search capabilities.
+- **Input**: 
+  ```json
+  {
+    "query": "string (your search query)"
+  }
+  ```
+- **Output**: List of files with:
+  - File name
+  - MIME type
+  - File ID
+  - Last modified time
+  - File size
 
-### Resources
+#### 2. `gdrive_read_file`
+Read file contents directly using a Google Drive file ID.
+- **Input**:
+  ```json
+  {
+    "file_id": "string (Google Drive file ID)"
+  }
+  ```
+- **Output**: File contents with appropriate format conversion
 
-The server provides access to Google Drive files:
+### Automatic File Format Handling
 
-- **Files** (`gdrive:///<file_id>`)
-  - Supports all file types
-  - Google Workspace files are automatically exported:
-    - Docs → Markdown
-    - Sheets → CSV
-    - Presentations → Plain text
-    - Drawings → PNG
-  - Other files are provided in their native format
+The server intelligently handles different Google Workspace file types:
+- 📝 Google Docs → Markdown
+- 📊 Google Sheets → CSV
+- 📊 Google Presentations → Plain text
+- 🎨 Google Drawings → PNG
+- 📄 Text/JSON files → UTF-8 text
+- 📦 Other files → Base64 encoded
 
-## Getting started
+## 🛠️ Getting Started
 
-1. [Create a new Google Cloud project](https://console.cloud.google.com/projectcreate)
-2. [Enable the Google Drive API](https://console.cloud.google.com/workspace-api/products)
-3. [Configure an OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent) ("internal" is fine for testing)
-4. Add OAuth scope `https://www.googleapis.com/auth/drive.readonly`
-5. [Create an OAuth Client ID](https://console.cloud.google.com/apis/credentials/oauthclient) for application type "Desktop App"
-6. Download the JSON file of your client's OAuth keys
-7. Rename the key file to `gcp-oauth.keys.json` and place it in the `credentials` directory (i.e. `credentials/gcp-oauth.keys.json`)
+### Prerequisites
+- Node.js (v16 or higher)
+- npm or yarn
+- A Google Cloud Project
+- A Google Workspace or personal Google account
 
-Make sure to build the server with either `npm run build` or `npm run watch`.
+### Detailed Google Cloud Setup
+
+1. **Create a Google Cloud Project**
+   - Visit the [Google Cloud Console](https://console.cloud.google.com/projectcreate)
+   - Click "New Project"
+   - Enter a project name (e.g., "MCP GDrive Server")
+   - Click "Create"
+   - Wait for the project to be created and select it
+
+2. **Enable the Google Drive API**
+   - Go to the [API Library](https://console.cloud.google.com/apis/library)
+   - Search for "Google Drive API"
+   - Click on "Google Drive API"
+   - Click "Enable"
+   - Wait for the API to be enabled
+
+3. **Configure OAuth Consent Screen**
+   - Navigate to [OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent)
+   - Select User Type:
+     - "Internal" if you're using Google Workspace
+     - "External" for personal Google accounts
+   - Click "Create"
+   - Fill in the required fields:
+     - App name: "MCP GDrive Server"
+     - User support email: your email
+     - Developer contact email: your email
+   - Click "Save and Continue"
+   - On the "Scopes" page:
+     - Click "Add or Remove Scopes"
+     - Add `https://www.googleapis.com/auth/drive.readonly`
+     - Click "Update"
+   - Click "Save and Continue"
+   - Review the summary and click "Back to Dashboard"
+
+4. **Create OAuth Client ID**
+   - Go to [Credentials](https://console.cloud.google.com/apis/credentials)
+   - Click "Create Credentials" at the top
+   - Select "OAuth client ID"
+   - Choose Application type: "Desktop app"
+   - Name: "MCP GDrive Server Desktop Client"
+   - Click "Create"
+   - In the popup:
+     - Click "Download JSON"
+     - Save the file
+     - Click "OK"
+
+5. **Set Up Credentials in Project**
+   ```bash
+   # Create credentials directory
+   mkdir credentials
+   
+   # Move and rename the downloaded JSON file
+   mv path/to/downloaded/client_secret_*.json credentials/gcp-oauth.keys.json
+   ```
+
+### Installation
+
+```bash
+# Install globally
+npm install -g @modelcontextprotocol/server-gdrive
+
+# Or install locally in your project
+npm install @modelcontextprotocol/server-gdrive
+```
 
 ### Authentication
 
-To authenticate and save credentials:
+1. Create a credentials directory and place your OAuth keys:
+   ```bash
+   mkdir credentials
+   # Move your gcp-oauth.keys.json to the credentials directory
+   ```
 
-1. Run the server with the `auth` argument: `node ./dist auth`
-2. This will open an authentication flow in your system browser
-3. Complete the authentication process
-4. Credentials will be saved in the `credentials` directory (i.e. `credentials/.gdrive-server-credentials.json`)
+2. Run the authentication command:
+   ```bash
+   # If installed globally
+   mcp-server-gdrive auth
 
-### Usage with Desktop App
+   # If installed locally
+   npx @modelcontextprotocol/server-gdrive auth
+   ```
 
-To integrate this server with the desktop app, add the following to your app's server configuration:
+3. Complete the OAuth flow in your browser
+4. Credentials will be saved in `credentials/.gdrive-server-credentials.json`
+
+## 🔧 Usage
+
+### As a Command Line Tool
+
+```bash
+# If installed globally
+mcp-server-gdrive
+
+# If installed locally
+npx @modelcontextprotocol/server-gdrive
+```
+
+### Integration with Desktop App
+
+Add this configuration to your app's server settings:
 
 ```json
 {
@@ -63,6 +164,45 @@ To integrate this server with the desktop app, add the following to your app's s
 }
 ```
 
-## License
+### Example Usage
 
-This MCP server is licensed under the MIT License. This means you are free to use, modify, and distribute the software, subject to the terms and conditions of the MIT License. For more details, please see the LICENSE file in the project repository.
+1. **Search for files**:
+   ```typescript
+   // Search for documents containing "quarterly report"
+   const result = await gdrive_search({ query: "quarterly report" });
+   ```
+
+2. **Read file contents**:
+   ```typescript
+   // Read a specific file using its ID
+   const contents = await gdrive_read_file({ file_id: "your-file-id" });
+   ```
+
+## 🔒 Security
+
+- All sensitive credentials are stored in the `credentials` directory
+- OAuth credentials and tokens are excluded from version control
+- Read-only access to Google Drive
+- Secure OAuth 2.0 authentication flow
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 📝 License
+
+This MCP server is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## 🔍 Troubleshooting
+
+If you encounter issues:
+1. Verify your Google Cloud Project setup
+2. Ensure all required OAuth scopes are enabled
+3. Check that credentials are properly placed in the `credentials` directory
+4. Verify file permissions and access rights in Google Drive
+
+## 📚 Additional Resources
+
+- [Google Drive API Documentation](https://developers.google.com/drive/api/v3/reference)
+- [OAuth 2.0 for Desktop Apps](https://developers.google.com/identity/protocols/oauth2/native-app)
+- [Model Context Protocol Documentation](https://modelcontextprotocol.io)
