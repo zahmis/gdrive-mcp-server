@@ -14,6 +14,7 @@ import {
 import fs from "fs";
 import { google } from "googleapis";
 import path from "path";
+import os from "os";
 
 const drive = google.drive("v3");
 
@@ -242,17 +243,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   throw new Error("Tool not found");
 });
 
+const defaultCredentialsDir = path.join(os.homedir(), ".gdrive-mcp-server");
 const credentialsPath =
   process.env.MCP_GDRIVE_CREDENTIALS ||
-  path.join(process.cwd(), "credentials", ".gdrive-server-credentials.json");
+  path.join(defaultCredentialsDir, ".gdrive-server-credentials.json");
 
 async function authenticateAndSaveCredentials() {
   const keyPath =
     process.env.GOOGLE_APPLICATION_CREDENTIALS ||
-    path.join(process.cwd(), "credentials", "gcp-oauth.keys.json");
+    path.join(defaultCredentialsDir, "gcp-oauth.keys.json");
 
   console.log("Looking for keys at:", keyPath);
   console.log("Will save credentials to:", credentialsPath);
+
+  if (!fs.existsSync(defaultCredentialsDir)) {
+    fs.mkdirSync(defaultCredentialsDir, { recursive: true });
+  }
 
   const auth = await authenticate({
     keyfilePath: keyPath,
