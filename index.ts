@@ -11,10 +11,10 @@ import {
   McpError,
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import fs from "fs";
-import { google } from "googleapis";
-import path from "path";
-import os from "os";
+import fs from "node:fs";
+import { google, type drive_v3 } from "googleapis";
+import path from "node:path";
+import os from "node:os";
 
 const drive = google.drive("v3");
 
@@ -33,7 +33,7 @@ const server = new Server(
 
 server.setRequestHandler(ListResourcesRequestSchema, async (request) => {
   const pageSize = 10;
-  const params: any = {
+  const params: drive_v3.Params$Resource$Files$List = {
     pageSize,
     fields: "nextPageToken, files(id, name, mimeType)",
   };
@@ -43,7 +43,7 @@ server.setRequestHandler(ListResourcesRequestSchema, async (request) => {
   }
 
   const res = await drive.files.list(params);
-  const files = res.data.files!;
+  const files = res.data.files ?? [];
 
   return {
     resources: files.map((file) => ({
@@ -180,8 +180,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (request.params.name === "gdrive_search") {
     const userQuery = request.params.arguments?.query as string;
+    if (typeof userQuery !== "string") {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        "Search query must be a string."
+      );
+    }
     const escapedQuery = userQuery.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-    const formattedQuery = `fullText contains '${escapedQuery}'`;
+    const formattedQuery = `(name contains '${escapedQuery}' or fullText contains '${escapedQuery}') and trashed = false`;
 
     const res = await drive.files.list({
       q: formattedQuery,
@@ -189,8 +195,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       fields: "files(id, name, mimeType, modifiedTime, size)",
     });
 
-    const fileList = res.data.files
-      ?.map((file: any) => `${file.name} (${file.mimeType}) - ID: ${file.id}`)
+    const fileList = (res.data.files ?? [])
+      .map(
+        (file: drive_v3.Schema$File) =>
+          `${file.name} (${file.mimeType ?? "unknown type"}) - ID: ${file.id}`
+      )
       .join("\n");
     return {
       content: [
@@ -219,12 +228,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         ],
         isError: false,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      let errorMessage = "An unknown error occurred during file read";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      console.error("Error in gdrive_read_file:", error);
       return {
         content: [
           {
             type: "text",
-            text: `Error reading file: ${error.message}`,
+            text: `Error reading file: ${errorMessage}`,
           },
         ],
         isError: true,
@@ -249,12 +263,26 @@ const credentialsPath =
   path.join(defaultCredentialsDir, ".gdrive-server-credentials.json");
 
 async function authenticateAndSaveCredentials() {
-  const keyPath =
-    process.env.GOOGLE_APPLICATION_CREDENTIALS ||
-    path.join(defaultCredentialsDir, "gcp-oauth.keys.json");
+  const keyPath = process.env.MCP_GDRIVE_OAUTH_KEYS_PATH;
+  if (!keyPath) {
+    console.error(
+      "Error: MCP_GDRIVE_OAUTH_KEYS_PATH environment variable is not set."
+    );
+    console.error(
+      "Please set this variable to the path of your OAuth client ID JSON file (desktop app type recommended)."
+    );
+    process.exit(1);
+  }
 
-  console.log("Looking for keys at:", keyPath);
-  console.log("Will save credentials to:", credentialsPath);
+  console.error("Using OAuth keys from:", keyPath);
+  console.error("Will save credentials to:", credentialsPath);
+
+  if (!fs.existsSync(keyPath)) {
+    console.error(
+      `Error: OAuth keys file not found at specified path: ${keyPath}`
+    );
+    process.exit(1);
+  }
 
   if (!fs.existsSync(defaultCredentialsDir)) {
     fs.mkdirSync(defaultCredentialsDir, { recursive: true });
@@ -266,20 +294,40 @@ async function authenticateAndSaveCredentials() {
   });
 
   fs.writeFileSync(credentialsPath, JSON.stringify(auth.credentials));
-  console.log("Credentials saved. You can now run the server.");
+  console.error("Credentials saved. You can now run the server.");
 }
 
 async function loadCredentialsAndRunServer() {
   if (!fs.existsSync(credentialsPath)) {
     console.warn(
-      "Credentials not found. Use the 'gdrive_auth' tool via MCP to authenticate first."
+      `Credentials file not found at ${credentialsPath}. Authentication may be required.`
     );
-  }
-  if (fs.existsSync(credentialsPath)) {
-    const credentials = JSON.parse(fs.readFileSync(credentialsPath, "utf-8"));
-    const auth = new google.auth.OAuth2();
-    auth.setCredentials(credentials);
-    google.options({ auth });
+    console.warn(
+      "Run with 'auth' argument or use 'gdrive_auth' tool if needed."
+    );
+  } else {
+    try {
+      const credentials = JSON.parse(fs.readFileSync(credentialsPath, "utf-8"));
+      if (
+        !credentials ||
+        typeof credentials !== "object" ||
+        !credentials.refresh_token
+      ) {
+        throw new Error("Invalid credentials format in file.");
+      }
+      const auth = new google.auth.OAuth2();
+      auth.setCredentials(credentials);
+      google.options({ auth });
+      console.error("Credentials loaded successfully.");
+    } catch (error: unknown) {
+      console.error(
+        `Error loading or parsing credentials from ${credentialsPath}:`,
+        error instanceof Error ? error.message : error
+      );
+      console.error(
+        "File might be corrupted or invalid. Please run authentication again."
+      );
+    }
   }
   const transport = new StdioServerTransport();
   await server.connect(transport);
@@ -288,8 +336,11 @@ async function loadCredentialsAndRunServer() {
 if (process.argv[2] === "auth") {
   authenticateAndSaveCredentials().catch(console.error);
 } else {
-  loadCredentialsAndRunServer().catch((error) => {
-    process.stderr.write(`Error: ${error}\n`);
+  loadCredentialsAndRunServer().catch((error: unknown) => {
+    console.error(
+      "Fatal error starting server:",
+      error instanceof Error ? error.message : error
+    );
     process.exit(1);
   });
 }
