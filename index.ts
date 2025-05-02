@@ -259,22 +259,52 @@ const defaultCredentialsDir = path.join(os.homedir(), ".gdrive-mcp-server");
 const credentialsPath =
   process.env.MCP_GDRIVE_CREDENTIALS ||
   path.join(defaultCredentialsDir, ".gdrive-server-credentials.json");
+// Define path for authentication error logs
+const authErrorLogPath = path.join(defaultCredentialsDir, "auth_error.log");
 
 async function authenticateAndSaveCredentials() {
+  // Clear previous error log if it exists
+  if (fs.existsSync(authErrorLogPath)) {
+    fs.unlinkSync(authErrorLogPath);
+  }
+
   const keyPath =
     process.env.GOOGLE_APPLICATION_CREDENTIALS ||
     path.join(defaultCredentialsDir, "gcp-oauth.keys.json");
+
+  // Check if key file exists before attempting authentication
+  if (!fs.existsSync(keyPath)) {
+    const errorMsg = `Error: Key file not found at ${keyPath}. Set GOOGLE_APPLICATION_CREDENTIALS or place it in the default directory.`;
+    fs.writeFileSync(authErrorLogPath, errorMsg);
+    // Re-throw the error to stop the process and potentially signal failure upstream
+    throw new Error(errorMsg);
+  }
 
   if (!fs.existsSync(defaultCredentialsDir)) {
     fs.mkdirSync(defaultCredentialsDir, { recursive: true });
   }
 
-  const auth = await authenticate({
-    keyfilePath: keyPath,
-    scopes: ["https://www.googleapis.com/auth/drive.readonly"],
-  });
+  try {
+    const auth = await authenticate({
+      keyfilePath: keyPath,
+      scopes: ["https://www.googleapis.com/auth/drive.readonly"],
+    });
 
-  fs.writeFileSync(credentialsPath, JSON.stringify(auth.credentials));
+    fs.writeFileSync(credentialsPath, JSON.stringify(auth.credentials));
+  } catch (error) {
+    // Log the detailed error to the specified file
+    const timestamp = new Date().toISOString();
+    const errorDetails =
+      error instanceof Error
+        ? `${timestamp}: ${error.stack}`
+        : `${timestamp}: ${String(error)}`;
+    fs.writeFileSync(
+      authErrorLogPath,
+      `Authentication failed:\n${errorDetails}`
+    );
+    // Re-throw the error after logging so the calling process knows it failed
+    throw error;
+  }
 }
 
 async function loadCredentialsAndRunServer() {
