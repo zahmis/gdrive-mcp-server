@@ -11,10 +11,10 @@ import {
   McpError,
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import fs from "fs";
-import { google } from "googleapis";
-import path from "path";
-import os from "os";
+import fs from "node:fs";
+import { google, type drive_v3 } from "googleapis";
+import path from "node:path";
+import os from "node:os";
 
 const drive = google.drive("v3");
 
@@ -33,7 +33,7 @@ const server = new Server(
 
 server.setRequestHandler(ListResourcesRequestSchema, async (request) => {
   const pageSize = 10;
-  const params: any = {
+  const params: drive_v3.Params$Resource$Files$List = {
     pageSize,
     fields: "nextPageToken, files(id, name, mimeType)",
   };
@@ -43,7 +43,14 @@ server.setRequestHandler(ListResourcesRequestSchema, async (request) => {
   }
 
   const res = await drive.files.list(params);
-  const files = res.data.files!;
+  const files = res.data.files;
+
+  if (!files) {
+    return {
+      resources: [],
+      nextCursor: res.data.nextPageToken,
+    };
+  }
 
   return {
     resources: files.map((file) => ({
@@ -190,7 +197,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     });
 
     const fileList = res.data.files
-      ?.map((file: any) => `${file.name} (${file.mimeType}) - ID: ${file.id}`)
+      ?.map(
+        (file: drive_v3.Schema$File) =>
+          `${file.name} (${file.mimeType}) - ID: ${file.id}`
+      )
       .join("\n");
     return {
       content: [
@@ -219,12 +229,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         ],
         isError: false,
       };
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       return {
         content: [
           {
             type: "text",
-            text: `Error reading file: ${error.message}`,
+            text: `Error reading file: ${errorMessage}`,
           },
         ],
         isError: true,
