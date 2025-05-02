@@ -253,9 +253,6 @@ async function authenticateAndSaveCredentials() {
     process.env.GOOGLE_APPLICATION_CREDENTIALS ||
     path.join(defaultCredentialsDir, "gcp-oauth.keys.json");
 
-  console.log("Looking for keys at:", keyPath);
-  console.log("Will save credentials to:", credentialsPath);
-
   if (!fs.existsSync(defaultCredentialsDir)) {
     fs.mkdirSync(defaultCredentialsDir, { recursive: true });
   }
@@ -266,7 +263,6 @@ async function authenticateAndSaveCredentials() {
   });
 
   fs.writeFileSync(credentialsPath, JSON.stringify(auth.credentials));
-  console.log("Credentials saved. You can now run the server.");
 }
 
 async function loadCredentialsAndRunServer() {
